@@ -1,0 +1,28 @@
+﻿# Node / Vite / general
+node_modules/
+dist/
+build/
+.cache/
+.tmp/
+coverage/
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env & local configs
+.env
+.env.*
+!*.env.example
+
+# Editor
+.vscode/
+.idea/
+
+# Lock files (optional – pick your manager)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
