@@ -1,11 +1,8 @@
 // src/lib/api.ts
 // -----------------------------------------------------------------------------
 // Tiny typed API client for the frontend.
-// - Centralizes base URL, auth header, error handling, and JSON parsing.
-// - Exposes strongly-typed helpers for auth, rooms, bookings and users.
 // -----------------------------------------------------------------------------
 
-// --------- Shared types returned by the backend --------------------------------
 export type User = { id: string; username: string; role: 'User' | 'Admin' };
 
 export type Room = {
@@ -19,118 +16,102 @@ export type Room = {
 
 export type Booking = {
   _id: string;
-
-  // roomId can be an id (string) OR a populated object (from backend .populate)
   roomId: string | { _id: string; name: string; type: 'workspace' | 'conference' };
-
-  // userId can be an id (string) OR a populated object
   userId: string | { _id: string; username: string };
-
-  startTime: string; // ISO-8601 in UTC (e.g., "2025-08-31T12:00:00.000Z")
-  endTime: string;   // ISO-8601 in UTC
+  startTime: string; // ISO-8601 UTC
+  endTime: string;   // ISO-8601 UTC
 };
 
 type LoginRes = { token: string; user: User };
 
-// Resolve API base from Vite env, fallback to local backend
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+// Base URL (works with VITE_API_BASE_URL or VITE_API_URL; dev fallback 4000)
+const RAW_BASE =
+  import.meta.env.VITE_API_BASE_URL ??
+  import.meta.env.VITE_API_URL ??
+  'http://localhost:4000';
 
-// Read JWT from localStorage (set by AuthContext after login/register)
+export const BASE = RAW_BASE.replace(/\/+$/, '').replace(/\/api$/i, '');
+
 function token() {
   return localStorage.getItem('token') || '';
 }
 
-/**
- * request<T>
- * -----------
- * Generic fetch wrapper:
- *  - Sets JSON headers and Authorization: Bearer <token> when present
- *  - Reads body once as text, to allow consistent error parsing
- *  - On non-OK: throws Error(message) where message prefers `{error}`/`{message}` from server
- *  - On OK: returns parsed JSON (or {} for 204 / empty body)
- */
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers || {});
   headers.set('Content-Type', 'application/json');
+  headers.set('Accept', 'application/json');
 
   const t = token();
   if (t) headers.set('Authorization', `Bearer ${t}`);
 
-  const res = await fetch(`${BASE}${path}`, { ...init, headers });
+  const maxAttempts = 3;
+  const baseDelayMs = 1500;
+  let lastErr: unknown;
 
-  // Read once as text so we can parse for both error/success
-  const text = await res.text();
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60_000);
 
-  if (!res.ok) {
-    // Try to surface structured errors from backend: { error: "..."} or { message: "..." }
     try {
-      const data = text ? JSON.parse(text) : null;
-      const msg = data?.error || data?.message || text || `HTTP ${res.status}`;
-      throw new Error(msg);
-    } catch {
-      // Non-JSON error body—return raw text or fallback to status
-      throw new Error(text || `HTTP ${res.status}`);
+      const res = await fetch(`${BASE}${path}`, { ...init, headers, signal: controller.signal });
+      const text = await res.text();
+      clearTimeout(timeout);
+
+      if (!res.ok) {
+        try {
+          const data = text ? JSON.parse(text) : null;
+          const msg = data?.error || data?.message || text || `HTTP ${res.status}`;
+          throw new Error(msg);
+        } catch {
+          throw new Error(text || `HTTP ${res.status}`);
+        }
+      }
+
+      return (text ? JSON.parse(text) : {}) as T; // handle 204
+    } catch (e: any) {
+      clearTimeout(timeout);
+      lastErr = e;
+      const isTimeout = e?.name === 'AbortError';
+      const looksNetworky = e instanceof TypeError || /Network\s?Error|Failed to fetch/i.test(String(e?.message));
+
+      if (attempt < maxAttempts && (isTimeout || looksNetworky)) {
+        await new Promise(r => setTimeout(r, baseDelayMs * attempt));
+        continue;
+      }
+
+      throw isTimeout ? new Error('Servern vaknar. Försök igen strax.') : e;
     }
   }
 
-  // 204 No Content or empty body
-  if (!text) return {} as T;
-
-  // Success JSON
-  return JSON.parse(text) as T;
+  throw lastErr as Error;
 }
 
-// ---------------------- API surface (used by pages/components) -----------------
 export const api = {
-  // ---- Auth ----
+  // Auth
   register: (u: string, p: string) =>
-    request<LoginRes>('/api/register', {
-      method: 'POST',
-      body: JSON.stringify({ username: u, password: p }),
-    }),
-
+    request<LoginRes>('/api/register', { method: 'POST', body: JSON.stringify({ username: u, password: p }) }),
   login: (u: string, p: string) =>
-    request<LoginRes>('/api/login', {
-      method: 'POST',
-      body: JSON.stringify({ username: u, password: p }),
-    }),
+    request<LoginRes>('/api/login', { method: 'POST', body: JSON.stringify({ username: u, password: p }) }),
 
-  // ---- Rooms (Admin can create/update/delete; all auth users can list) ----
+  // Rooms
   getRooms: () => request<Room[]>('/api/rooms'),
-
   createRoom: (data: Partial<Room>) =>
     request<Room>('/api/rooms', { method: 'POST', body: JSON.stringify(data) }),
-
   updateRoom: (id: string, data: Partial<Room>) =>
     request<Room>(`/api/rooms/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteRoom: (id: string) => request<void>(`/api/rooms/${id}`, { method: 'DELETE' }),
 
-  deleteRoom: (id: string) =>
-    request<void>(`/api/rooms/${id}`, { method: 'DELETE' }),
-
-  // ---- Bookings (User sees own; Admin sees all) ----
+  // Bookings
   getBookings: () => request<Booking[]>('/api/bookings'),
-
   createBooking: (data: { roomId: string; startTime: string; endTime: string }) =>
     request<Booking>('/api/bookings', { method: 'POST', body: JSON.stringify(data) }),
+  updateBooking: (id: string, data: Partial<{ startTime: string; endTime: string; roomId: string }>) =>
+    request<Booking>(`/api/bookings/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteBooking: (id: string) => request<void>(`/api/bookings/${id}`, { method: 'DELETE' }),
 
-  updateBooking: (
-    id: string,
-    data: Partial<{ startTime: string; endTime: string; roomId: string }>
-  ) =>
-    request<Booking>(`/api/bookings/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  deleteBooking: (id: string) =>
-    request<void>(`/api/bookings/${id}`, { method: 'DELETE' }),
-
-  // ---- Users (Admin only) ----
+  // Users (Admin)
   getUsers: () =>
-    request<Array<{ _id: string; username: string; role: 'User' | 'Admin' }>>(
-      '/api/users'
-    ),
-
+    request<Array<{ _id: string; username: string; role: 'User' | 'Admin' }>>('/api/users'),
   deleteUser: (id: string) =>
     request<void>(`/api/users/${id}`, { method: 'DELETE' }),
 };

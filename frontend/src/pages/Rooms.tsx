@@ -1,4 +1,5 @@
-// src/pages/Rooms.tsx
+// List rooms and allow booking. Disables the button until form is valid.
+
 import { useEffect, useState } from 'react';
 import { api, type Room, type Booking } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
@@ -8,24 +9,23 @@ type FormState = { roomId?: string; start?: string; end?: string };
 export default function Rooms() {
   const { user } = useAuth();
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]); // show existing bookings per room
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [form, setForm] = useState<FormState>({});
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
 
-  /** Lower bound for inputs (now, local) to block past times */
+  // Lower bound for inputs (now, local) to block past times
   const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
     .toISOString()
     .slice(0, 16);
 
-  /** Load rooms + (scoped) bookings */
   async function load() {
     setLoading(true);
     setMsg(null);
     try {
       const [rs, bs] = await Promise.all([
         api.getRooms(),
-        api.getBookings(), // Admin = all; User = own (enough to avoid own conflicts)
+        api.getBookings(), // Admin = all; User = own
       ]);
       setRooms(rs);
       setBookings(bs);
@@ -38,7 +38,6 @@ export default function Rooms() {
 
   useEffect(() => { load(); }, []);
 
-  /** Create a booking for the active room card */
   const book = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.roomId || !form.start || !form.end) {
@@ -56,7 +55,7 @@ export default function Rooms() {
       });
       setMsg('Bokning skapad');
       setForm({});
-      await load(); // refresh lists
+      await load();
     } catch (e: any) {
       setMsg(e.message || 'Kunde inte skapa bokning');
     }
@@ -77,13 +76,18 @@ export default function Rooms() {
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {rooms.map(r => {
-          // Upcoming bookings for this room (show a few to help avoid collisions)
+          // A few upcoming bookings for this room
           const upcoming = bookings
             .filter(b => (typeof b.roomId === 'string' ? b.roomId === r._id : b.roomId?._id === r._id))
             .sort((a, b) => +new Date(a.startTime) - +new Date(b.startTime))
             .slice(0, 3);
 
-          const isActive = form.roomId === r._id; // keep one inline form "active" per card
+          const isActive = form.roomId === r._id; // one active form per card
+          const canBook =
+            isActive &&
+            !!form.start &&
+            !!form.end &&
+            new Date(form.start) < new Date(form.end);
 
           return (
             <article key={r._id} className="card overflow-hidden">
@@ -101,7 +105,7 @@ export default function Rooms() {
                 </div>
                 <p className="text-sm text-gray-600 mt-1">Kapacitet: {r.capacity}</p>
 
-                {/* Show a few existing bookings for this room */}
+                {/* Existing bookings preview */}
                 <ul className="text-xs text-gray-600 mt-2 space-y-1">
                   {upcoming.map(b => (
                     <li key={b._id}>
@@ -111,7 +115,7 @@ export default function Rooms() {
                   {upcoming.length === 0 && <li className="opacity-60">Inga kommande tider</li>}
                 </ul>
 
-                {/* Create booking form for this room */}
+                {/* Inline booking form */}
                 <form onSubmit={book} className="mt-3 space-y-2">
                   <input
                     type="datetime-local"
@@ -125,9 +129,11 @@ export default function Rooms() {
                     className="input w-full"
                     value={isActive ? (form.end || '') : ''}
                     onChange={(e) => setForm({ roomId: r._id, start: form.start, end: e.target.value })}
-                    min={isActive ? (form.start || nowLocal) : nowLocal} // end can’t be before start
+                    min={isActive ? (form.start || nowLocal) : nowLocal} // end ≥ start
                   />
-                  <button className="btn-primary w-full">Boka</button>
+                  <button className="btn-primary w-full" disabled={!canBook}>
+                    Boka
+                  </button>
                 </form>
               </div>
             </article>

@@ -10,19 +10,19 @@ import authRoutes     from './routes/auth.routes.js';
 import roomRoutes     from './routes/rooms.routes.js';
 import bookingRoutes  from './routes/bookings.routes.js';
 import usersRoutes    from './routes/users.routes.js';
-import { notFound, errorHandler } from './middleware/error.js';
+import { notFound, errorHandler } from './middleware/errors.js'; 
+
 
 const app = express();
 
-// Behind Render/Netlify proxies
+// If you're behind a proxy (Render/Netlify), trust it
 app.set('trust proxy', 1);
 
 // ---------- CORS helpers ----------
 function parseCorsOrigins(value) {
-  if (!value) return true; // reflect request origin (dev-friendly)
+  if (!value) return true; // reflect request origin in dev
   const list = value.split(',').map(s => s.trim()).filter(Boolean);
-  if (list.includes('*')) return true;
-  return list;
+  return list.includes('*') ? true : list;
 }
 
 const corsOptions = {
@@ -32,7 +32,7 @@ const corsOptions = {
   allowedHeaders: ['Content-Type','Authorization'],
 };
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // preflight for all routes
+app.options('*', cors(corsOptions)); // preflight
 
 // ---------- Security & core ----------
 app.use(helmet());
@@ -51,24 +51,23 @@ if (!process.env.JWT_SECRET) {
   if (process.env.NODE_ENV === 'production') {
     throw new Error('JWT_SECRET missing');
   } else {
+    // eslint-disable-next-line no-console
     console.warn('[WARN] JWT_SECRET missing (dev mode)');
   }
 }
 if (process.env.JWT_SECRET) {
-  app.set('jwtVerify', (token) => jwt.verify(token, process.env.JWT_SECRET));
+  // constrain algorithms a bit (matches default HS256 use)
+  app.set('jwtVerify', (token) => jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] }));
 }
 
-// ---------- Health & root ----------
+// ---------- Health ----------
 app.get('/', (_req, res) => res.type('text').send('API is running'));
 app.get('/health',  (_req, res) => res.status(200).json({ ok: true }));
 app.get('/healthz', (_req, res) => res.status(200).json({ ok: true }));
 
-// (Optional) request log while diagnosing; comment out later
-// app.use((req, _res, next) => { console.log('[APP]', req.method, req.originalUrl); next(); });
-
 // ---------- Routes ----------
-app.use('/api', authRoutes);            // /api/register, /api/login, etc.
-app.use('/api/rooms', roomRoutes);      // -> rooms.routes.js should use router.get('/') etc.
+app.use('/api', authRoutes);            // /api/register, /api/login
+app.use('/api/rooms', roomRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/users', usersRoutes);
 

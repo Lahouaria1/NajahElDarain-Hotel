@@ -1,56 +1,41 @@
 // backend/src/config/db.js
+// Connects to MongoDB and sets up useful dev logging (safe for circular objects).
+
 import mongoose from 'mongoose';
 import logger from '../utils/logger.js';
 import 'dotenv/config';
+import util from 'node:util'; // ✅ for safe logging instead of JSON.stringify
 
-/**
- * Connect to MongoDB using Mongoose.
- *
- * Requires env var:
- *   MONGO_URI = mongodb://localhost:27017/cowork_bookings_najah
- *   // or inside Docker Compose network:
- *   // MONGO_URI = mongodb://mongo:27017/cowork_bookings_najah
- */
 export async function connectDB() {
   const uri = process.env.MONGO_URI;
-  if (!uri) {
-    // Fail fast if no connection string is provided
-    throw new Error('MONGO_URI missing');
-  }
+  if (!uri) throw new Error('MONGO_URI missing');
 
-  // Optional: enable stricter query casting (good for catching typos)
+  // Optional: stricter query casting
   // mongoose.set('strictQuery', true);
 
-  // Optional: log MongoDB operations in development to help debugging
+  // ✅ Safe Mongoose debug logger (no circular JSON errors)
   if (process.env.NODE_ENV === 'development') {
-    mongoose.set('debug', (collection, method, query, doc, options) => {
-      const parts = [
-        `Mongoose: ${collection}.${method}`,
-        JSON.stringify(query),
-        doc ? JSON.stringify(doc) : '',
-        options ? JSON.stringify(options) : '',
-      ].filter(Boolean);
-      logger.debug(parts.join(' '));
+    mongoose.set('debug', (collection, method, query, doc /*, options */) => {
+      const q = util.inspect(query, { depth: 4, colors: false });
+      const d = doc ? util.inspect(doc, { depth: 2, colors: false }) : '';
+      logger.debug(`Mongoose: ${collection}.${method} ${q} ${d}`.trim());
     });
   }
 
   try {
-    // Connect to the database. You can pass options here if needed.
-    // Example: await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
-    await mongoose.connect(uri);
+    await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
     logger.info('MongoDB connected');
   } catch (err) {
-    // Initial connection failed — log and rethrow so the app can exit
     logger.error('MongoDB initial connection error', err);
     throw err;
   }
 
-  // Useful connection lifecycle logs
+  // Connection lifecycle logs
   mongoose.connection.on('connected', () => logger.info('MongoDB connection established'));
   mongoose.connection.on('error', (err) => logger.error('MongoDB connection error', err));
   mongoose.connection.on('disconnected', () => logger.warn('MongoDB disconnected'));
 
-  // Graceful shutdown: close DB connection on process signals
+  // Graceful shutdown
   const close = async (signal) => {
     try {
       logger.info(`${signal} received: closing MongoDB connection…`);
@@ -62,7 +47,6 @@ export async function connectDB() {
       process.exit(1);
     }
   };
-
-  process.once('SIGINT', () => close('SIGINT'));  // Ctrl+C locally
-  process.once('SIGTERM', () => close('SIGTERM')); // e.g. platform shutdown
+  process.once('SIGINT', () => close('SIGINT'));
+  process.once('SIGTERM', () => close('SIGTERM'));
 }

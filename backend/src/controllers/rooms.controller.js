@@ -14,9 +14,7 @@ function isValidHttpUrl(u) {
   } catch { return false; }
 }
 
-/**
- * POST /api/rooms  (Admin)
- */
+/** POST /api/rooms (Admin) */
 export async function createRoom(req, res, next) {
   try {
     let { name, capacity, type, imageUrl, description } = req.body;
@@ -44,16 +42,13 @@ export async function createRoom(req, res, next) {
     });
 
     await redis?.del(ROOMS_CACHE_KEY);
-
     res.status(201).json(room);
   } catch (e) {
     next(e);
   }
 }
 
-/**
- * GET /api/rooms  (User/Admin)
- */
+/** GET /api/rooms */
 export async function listRooms(_req, res, next) {
   try {
     if (redis) {
@@ -67,6 +62,7 @@ export async function listRooms(_req, res, next) {
     const rooms = await Room.find().sort({ createdAt: -1 }).lean();
 
     if (redis) {
+      // ioredis style: key, value, 'EX', ttl
       await redis.set(ROOMS_CACHE_KEY, JSON.stringify(rooms), 'EX', ROOMS_TTL_SEC);
     }
 
@@ -77,14 +73,11 @@ export async function listRooms(_req, res, next) {
   }
 }
 
-/**
- * PUT /api/rooms/:id  (Admin)
- */
+/** PUT /api/rooms/:id (Admin) */
 export async function updateRoom(req, res, next) {
   try {
     const { id } = req.params;
 
-    // whitelist fields
     const updates = {};
     if ('name' in req.body) updates.name = String(req.body.name).trim();
     if ('capacity' in req.body) {
@@ -108,7 +101,8 @@ export async function updateRoom(req, res, next) {
     }
     if ('description' in req.body) updates.description = req.body.description || '';
 
-    const room = await Room.findByIdAndUpdate(id, updates, { new: true });
+    // run schema validators on update
+    const room = await Room.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
     if (!room) throw ApiError.badRequest('Room not found');
 
     await redis?.del(ROOMS_CACHE_KEY);
@@ -118,9 +112,7 @@ export async function updateRoom(req, res, next) {
   }
 }
 
-/**
- * DELETE /api/rooms/:id  (Admin)
- */
+/** DELETE /api/rooms/:id (Admin) */
 export async function deleteRoom(req, res, next) {
   try {
     const { id } = req.params;

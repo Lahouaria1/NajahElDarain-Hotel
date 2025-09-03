@@ -5,7 +5,7 @@ import { getIO } from '../sockets/io.js';
 import { validateWindow } from '../services/bookingService.js';
 import logger from '../utils/logger.js';
 
-/** Populate helper so API + socket events always send the same shape */
+// Ensure responses always include room name/type and username
 async function populateForClient(doc) {
   if (!doc) return doc;
   return doc.populate([
@@ -17,9 +17,7 @@ async function populateForClient(doc) {
 /**
  * POST /api/bookings
  * Create a booking for the authenticated user.
- * - Validates input and time window
- * - Checks for overlaps (logs the exact conflict)
- * - Emits socket events to owner and admins
+ * Standalone MongoDB safe (no transactions).
  */
 export async function createBooking(req, res, next) {
   logger.info('[BOOKINGS] create', { user: req.user?.id, body: req.body });
@@ -31,7 +29,7 @@ export async function createBooking(req, res, next) {
 
     const { start, end } = validateWindow(startTime, endTime);
 
-    // Find first conflicting booking (if any)
+    // Overlap check: any booking in same room that intersects [start, end)
     const conflict = await Booking.findOne({
       roomId,
       startTime: { $lt: end },
@@ -61,7 +59,6 @@ export async function createBooking(req, res, next) {
 
     booking = await populateForClient(booking);
 
-    // Socket notifications
     const io = getIO();
     io?.to(String(req.user.id)).emit('booking:created', booking);
     io?.to('admins').emit('booking:created', booking);
@@ -98,8 +95,7 @@ export async function listBookings(req, res, next) {
 /**
  * PUT /api/bookings/:id
  * Owner or Admin may update.
- * - Validates window
- * - Checks overlaps excluding the current booking (logs conflict)
+ * Standalone MongoDB safe (no transactions).
  */
 export async function updateBooking(req, res, next) {
   logger.info('[BOOKINGS] update', { user: req.user?.id, params: req.params, body: req.body });
@@ -108,12 +104,12 @@ export async function updateBooking(req, res, next) {
     const booking = await Booking.findById(id);
     if (!booking) throw ApiError.badRequest('Booking not found');
 
-    // Authorization
+    // Auth: only owner or Admin
     if (String(booking.userId) !== req.user.id && req.user.role !== 'Admin') {
       throw ApiError.forbidden('Not allowed');
     }
 
-    // Partial updates: default to existing
+    // Default to existing values if not provided
     const {
       roomId = booking.roomId,
       startTime = booking.startTime,
@@ -193,7 +189,7 @@ export async function deleteBooking(req, res, next) {
 
 /**
  * (Optional) GET /api/bookings/debug/conflicts?roomId=...&start=ISO&end=ISO
- * Returns all overlapping bookings for a given window (for troubleshooting).
+ * Returns overlapping bookings for troubleshooting.
  */
 export async function findConflicts(req, res, next) {
   logger.info('[BOOKINGS] debug conflicts', { user: req.user?.id, query: req.query });

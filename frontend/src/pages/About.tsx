@@ -4,15 +4,6 @@ export default function About() {
     <div className="pb-12">
       {/* HERO */}
       <section className="hero">
-        <img
-          src="/about-hero.jpg"
-          alt="Najah El Darain Hotel – lobby eller utsikt"
-          className="hero-img"
-          onError={(e) => {
-            // Fallback: om bilden saknas, göm <img> och visa bara gradientbakgrund
-            (e.currentTarget as HTMLImageElement).style.display = 'none';
-          }}
-        />
         <div className="hero-grad" />
         <div className="hero-copy">
           <h1 className="text-3xl sm:text-4xl font-extrabold">Najah El Darain Hotel</h1>

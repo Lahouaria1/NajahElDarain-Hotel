@@ -2,7 +2,7 @@
 
 // Author name comes from environment (frontend/.env.local -> VITE_NAME=...)
 // Fallback to a hardcoded name if the env var is missing.
-const AUTHOR = import.meta.env.VITE_NAME ?? 'Lahouaria Sahla';
+const AUTHOR = import.meta.env.VITE_APP_NAME ?? 'Lahouaria Sahla';
 
 export default function Footer() {
   return (

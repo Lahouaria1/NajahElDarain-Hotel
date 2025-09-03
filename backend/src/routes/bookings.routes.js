@@ -1,6 +1,6 @@
 // backend/src/routes/bookings.routes.js
 import { Router } from 'express';
-import { authRequired /*, requireRole */ } from '../middleware/auth.js';
+import { authRequired, requireRole } from '../middleware/auth.js';
 import {
   createBooking,
   listBookings,
@@ -8,23 +8,26 @@ import {
   deleteBooking,
   findConflicts,
 } from '../controllers/bookings.controller.js';
+import logger from '../utils/logger.js';
+// (optional) write limiter to prevent spammy clients
+// import rateLimit from 'express-rate-limit';
+// const writeLimiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true });
 
 const router = Router();
 
-// (optional) trace requests hitting this router
+// Trace requests hitting this router (use logger, not console)
 router.use((req, _res, next) => {
-  console.log('[BOOKINGS ROUTER]', req.method, req.originalUrl);
+  logger.debug({ method: req.method, url: req.originalUrl }, '[BOOKINGS ROUTER]');
   next();
 });
 
 // CRUD
 router.get('/', authRequired, listBookings);
-router.post('/', authRequired, createBooking);
-router.put('/:id', authRequired, updateBooking);
-router.delete('/:id', authRequired, deleteBooking);
+router.post('/', authRequired, /* writeLimiter, */ createBooking);
+router.put('/:id', authRequired, /* writeLimiter, */ updateBooking);
+router.delete('/:id', authRequired, /* writeLimiter, */ deleteBooking);
 
-// Debug helper: list overlaps for a given window
-// You can further restrict it to admins only by adding: requireRole('Admin')
-router.get('/debug/conflicts', authRequired, findConflicts);
+// Debug helper: list overlaps for a given window (Admin only)
+router.get('/debug/conflicts', authRequired, requireRole('Admin'), findConflicts);
 
 export default router;

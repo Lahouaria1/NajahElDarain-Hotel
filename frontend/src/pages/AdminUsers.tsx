@@ -1,10 +1,15 @@
+// Admin list of users with booking counts. Blocks deleting Admins and yourself.
+
 import { useEffect, useMemo, useState } from 'react';
 import { api, type Booking } from '../lib/api';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext'; // read current user
 
-type UserRow = { _id: string; username: string; role: 'User'|'Admin' };
+type UserRow = { _id: string; username: string; role: 'User' | 'Admin' };
 
 export default function AdminUsers() {
+  const { user } = useAuth(); // currently logged-in user
+
   const [users, setUsers] = useState<UserRow[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +30,7 @@ export default function AdminUsers() {
 
   useEffect(() => { load(); }, []);
 
+  // userId -> number of bookings
   const counts = useMemo(() => {
     const m = new Map<string, number>();
     for (const b of bookings) {
@@ -35,10 +41,26 @@ export default function AdminUsers() {
     return m;
   }, [bookings]);
 
-  const removeUser = async (id: string, username: string) => {
+  const removeUser = async (u: UserRow) => {
+    if (u.role === 'Admin') {
+      setMsg('Du kan inte ta bort administratörskonton.');
+      return;
+    }
+    // Prevent removing yourself
+    if (user && (user.id === u._id || user.username === u.username)) {
+      setMsg('Du kan inte ta bort ditt eget konto.');
+      return;
+    }
+
+    const id = u._id;
+    const username = u.username;
     const hasBookings = (counts.get(id) || 0) > 0;
-    if (hasBookings && !confirm(`${username} har bokningar. Ta bort ändå?`)) return;
-    if (!hasBookings && !confirm(`Ta bort ${username}?`)) return;
+
+    if (hasBookings) {
+      if (!confirm(`${username} har bokningar. Ta bort ändå?`)) return;
+    } else {
+      if (!confirm(`Ta bort ${username}?`)) return;
+    }
 
     try {
       await api.deleteUser(id);
@@ -70,6 +92,9 @@ export default function AdminUsers() {
             {users.map(u => {
               const id = u._id;
               const c = counts.get(id) || 0;
+              const isAdmin = u.role === 'Admin';
+              const isSelf = user && (user.id === id || user.username === u.username);
+
               return (
                 <tr key={id} className="border-b">
                   <td className="py-2">{u.username}</td>
@@ -77,23 +102,34 @@ export default function AdminUsers() {
                   <td className="py-2">
                     {c}{' '}
                     {c > 0 && (
-                      <Link className="underline"
-                        to={`/admin/bookings?userId=${id}`}>
+                      <Link className="underline" to={`/admin/bookings?userId=${id}`}>
                         (visa)
                       </Link>
                     )}
                   </td>
                   <td className="py-2">
-                    {/* 🔴 red delete button */}
-                    <button className="btn-danger" onClick={() => removeUser(id, u.username)}>
-                      Ta bort
-                    </button>
+                    {(isAdmin || isSelf) ? (
+                      <button
+                        className="btn-danger opacity-50 cursor-not-allowed"
+                        disabled
+                        title={isAdmin ? 'Administratörer kan inte tas bort' : 'Du kan inte ta bort ditt eget konto'}
+                      >
+                        Ta bort
+                      </button>
+                    ) : (
+                      <button className="btn-danger" onClick={() => removeUser(u)}>
+                        Ta bort
+                      </button>
+                    )}
                   </td>
                 </tr>
               );
             })}
+
             {users.length === 0 && (
-              <tr><td className="py-4" colSpan={4}>Inga användare.</td></tr>
+              <tr>
+                <td className="py-4" colSpan={4}>Inga användare.</td>
+              </tr>
             )}
           </tbody>
         </table>
