@@ -24,9 +24,6 @@ Stöd för roller (User/Admin), JWT, krockkontroll, realtidsnotiser (Socket.IO) 
 backend/ → Express/MongoDB API
 frontend/ → React/Vite/Tailwind UI
 
-yaml
-Kopiera kod
-
 ---
 
 ## Förkrav
@@ -50,7 +47,6 @@ REDIS_URL=redis://localhost:6379
 NODE_ENV=development
 Frontend (frontend/.env.local)
 env
-Kopiera kod
 VITE_API_URL=http://localhost:4000
 VITE_SOCKET_URL=http://localhost:4000  # valfritt – för Socket.IO
 VITE_APP_NAME=NajahElDarain
@@ -62,15 +58,13 @@ Frontend (Netlify) → lägg in frontend .env.local variabler i Netlify dashboar
 
 Starta projektet (lokalt)
 1) Backend
-bash
-Kopiera kod
+
 cd backend
 npm install
 npm run dev
 Du bör se:
 
-arduino
-Kopiera kod
+
 info: MongoDB connected
 info: API ready on :4000
 info: Redis connected    # endast om Redis körs
@@ -78,8 +72,6 @@ Hälsokoll:
 http://localhost:4000/health → { "ok": true }
 
 2) Frontend
-bash
-Kopiera kod
 cd frontend
 npm install
 npm run dev
@@ -88,15 +80,12 @@ npm run dev
 Skapa admin-konto
 Registrera användare via UI eller:
 
-bash
-Kopiera kod
 curl -X POST http://localhost:4000/api/register \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin1234"}'
 Gör kontot till admin i MongoDB:
 
-bash
-Kopiera kod
+
 mongosh
 use cowork_bookings_najah
 db.users.updateOne({ username: "admin" }, { $set: { role: "Admin" } })
@@ -105,7 +94,6 @@ Autentisering
 Alla skyddade rutter kräver header:
 
 makefile
-Kopiera kod
 Authorization: Bearer <JWT_TOKEN>
 POST /api/register – skapa användare
 
