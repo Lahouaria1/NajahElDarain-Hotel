@@ -1,7 +1,4 @@
 // src/lib/api.ts
-// -----------------------------------------------------------------------------
-// Tiny typed API client for the frontend.
-// -----------------------------------------------------------------------------
 
 export type User = { id: string; username: string; role: 'User' | 'Admin' };
 
@@ -18,13 +15,12 @@ export type Booking = {
   _id: string;
   roomId: string | { _id: string; name: string; type: 'workspace' | 'conference' };
   userId: string | { _id: string; username: string };
-  startTime: string; // ISO-8601 UTC
-  endTime: string;   // ISO-8601 UTC
+  startTime: string;
+  endTime: string;
 };
 
 type LoginRes = { token: string; user: User };
 
-// Base URL (works with VITE_API_BASE_URL or VITE_API_URL; dev fallback 4000)
 const RAW_BASE =
   import.meta.env.VITE_API_BASE_URL ??
   import.meta.env.VITE_API_URL ??
@@ -67,12 +63,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         }
       }
 
-      return (text ? JSON.parse(text) : {}) as T; // handle 204
+      return (text ? JSON.parse(text) : {}) as T;
     } catch (e: any) {
       clearTimeout(timeout);
       lastErr = e;
       const isTimeout = e?.name === 'AbortError';
-      const looksNetworky = e instanceof TypeError || /Network\s?Error|Failed to fetch/i.test(String(e?.message));
+      const looksNetworky =
+        e instanceof TypeError || /Network\s?Error|Failed to fetch/i.test(String(e?.message));
 
       if (attempt < maxAttempts && (isTimeout || looksNetworky)) {
         await new Promise(r => setTimeout(r, baseDelayMs * attempt));
@@ -87,31 +84,47 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  // Auth
   register: (u: string, p: string) =>
-    request<LoginRes>('/api/register', { method: 'POST', body: JSON.stringify({ username: u, password: p }) }),
-  login: (u: string, p: string) =>
-    request<LoginRes>('/api/login', { method: 'POST', body: JSON.stringify({ username: u, password: p }) }),
+    request<LoginRes>('/api/register', {
+      method: 'POST',
+      body: JSON.stringify({ username: u, password: p }),
+    }),
 
-  // Rooms
+  login: (u: string, p: string) =>
+    request<LoginRes>('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ username: u, password: p }),
+    }),
+
   getRooms: () => request<Room[]>('/api/rooms'),
   createRoom: (data: Partial<Room>) =>
     request<Room>('/api/rooms', { method: 'POST', body: JSON.stringify(data) }),
   updateRoom: (id: string, data: Partial<Room>) =>
     request<Room>(`/api/rooms/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  deleteRoom: (id: string) => request<void>(`/api/rooms/${id}`, { method: 'DELETE' }),
+  deleteRoom: (id: string) =>
+    request<void>(`/api/rooms/${id}`, { method: 'DELETE' }),
 
-  // Bookings
   getBookings: () => request<Booking[]>('/api/bookings'),
   createBooking: (data: { roomId: string; startTime: string; endTime: string }) =>
-    request<Booking>('/api/bookings', { method: 'POST', body: JSON.stringify(data) }),
-  updateBooking: (id: string, data: Partial<{ startTime: string; endTime: string; roomId: string }>) =>
-    request<Booking>(`/api/bookings/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  deleteBooking: (id: string) => request<void>(`/api/bookings/${id}`, { method: 'DELETE' }),
+    request<Booking>('/api/bookings', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateBooking: (
+    id: string,
+    data: Partial<{ startTime: string; endTime: string; roomId: string }>
+  ) =>
+    request<Booking>(`/api/bookings/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteBooking: (id: string) =>
+    request<void>(`/api/bookings/${id}`, { method: 'DELETE' }),
 
-  // Users (Admin)
   getUsers: () =>
-    request<Array<{ _id: string; username: string; role: 'User' | 'Admin' }>>('/api/users'),
+    request<Array<{ _id: string; username: string; role: 'User' | 'Admin' }>>(
+      '/api/users'
+    ),
   deleteUser: (id: string) =>
     request<void>(`/api/users/${id}`, { method: 'DELETE' }),
 };

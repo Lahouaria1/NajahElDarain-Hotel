@@ -3,44 +3,36 @@ import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
 
-/**
- * Booking
- * - References Room and User
- * - startTime < endTime is validated here (defense in depth;
- *   your service also validates and checks for overlaps)
- * - Indexes help the “find overlaps in same room” queries
- */
 const bookingSchema = new Schema(
   {
-    roomId:  { type: Schema.Types.ObjectId, ref: 'Room', required: true, index: true },
-    userId:  { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    startTime: { type: Date, required: true, index: true },
-    endTime:   { type: Date, required: true, index: true },
+    roomId:   { type: Schema.Types.ObjectId, ref: 'Room', required: true, index: true },
+    userId:   { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    startTime:{ type: Date, required: true, index: true },
+    endTime:  { type: Date, required: true, index: true },
   },
   { timestamps: true }
 );
 
-/** Basic validation: end must be after start */
-bookingSchema.path('endTime').validate(function (v) {
-  if (!this.startTime || !v) return true;
-  return v > this.startTime;
+// Validate that endTime is after startTime
+bookingSchema.path('endTime').validate(function (endTimeValue) {
+  // om någon av tiderna saknas hoppa över validering
+  if (!this.startTime || !endTimeValue) return true;
+  // returnera true om slutet är efter början
+  return endTimeValue > this.startTime;
 }, 'endTime must be after startTime');
 
-/** 
- * Compound indexes that speed up overlap checks like:
- *   find({ roomId, startTime: { $lt: end }, endTime: { $gt: start } })
- */
+// Indexes to speed up overlap queries
 bookingSchema.index({ roomId: 1, startTime: 1 });
 bookingSchema.index({ roomId: 1, endTime: 1 });
 bookingSchema.index({ roomId: 1, startTime: 1, endTime: 1 });
 
-/** Optional: tidy JSON (id instead of _id, remove __v) */
+// Cleaner JSON: id instead of _id, remove __v
 bookingSchema.set('toJSON', {
   virtuals: true,
   versionKey: false,
-  transform(_doc, ret) {
-    ret.id = ret._id;
-    delete ret._id;
+  transform(_doc, returnedObject) {
+    returnedObject.id = returnedObject._id;
+    delete returnedObject._id;
   },
 });
 

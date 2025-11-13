@@ -6,9 +6,6 @@ import { connectDB } from '../config/db.js';
 import User from '../models/User.js';
 import Room from '../models/Room.js';
 
-// Optional: prevent accidental prod seeding
-// if (process.env.NODE_ENV === 'production') { console.error('Refusing to run seeds in production'); process.exit(1); }
-
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin1234';
 
@@ -20,13 +17,13 @@ async function run() {
   if (!admin) {
     const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
     admin = await User.create({ username: ADMIN_USERNAME, password: hash, role: 'Admin' });
-    console.log(`✅ Admin created: ${admin.username} (${ADMIN_USERNAME}/${ADMIN_PASSWORD})`);
+    console.log(`Admin created: ${admin.username} (${ADMIN_USERNAME}/${ADMIN_PASSWORD})`);
   } else if (admin.role !== 'Admin') {
     admin.role = 'Admin';
     await admin.save();
-    console.log(`🔁 Existing user "${admin.username}" upgraded to Admin`);
+    console.log(`Existing user "${admin.username}" upgraded to Admin`);
   } else {
-    console.log('ℹ️ Admin already exists, skipping create');
+    console.log('Admin already exists, skipping create');
   }
 
   // Seed rooms if empty
@@ -55,14 +52,23 @@ async function run() {
         description: 'Stort rum för workshops',
       },
     ]);
-    console.log('✅ Sample rooms inserted (3)');
+    console.log('Sample rooms inserted (3)');
   } else {
-    console.log(`ℹ️ Rooms already present (${roomsCount}), skipping insert`);
+    console.log(`Rooms already present (${roomsCount}), skipping insert`);
   }
 
-  console.log(' Seeding completed.');
+  console.log('Seeding completed.');
 }
 
 run()
-  .then(async () => { await mongoose.disconnect(); process.exit(0); })
-  .catch(async (e) => { console.error('❌ Seed failed:', e); try { await mongoose.disconnect(); } catch {} process.exit(1); });
+  .then(async () => {
+    await mongoose.disconnect();
+    process.exit(0);
+  })
+  .catch(async (e) => {
+    console.error('Seed failed:', e);
+    try {
+      await mongoose.disconnect();
+    } catch {}
+    process.exit(1);
+  });

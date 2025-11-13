@@ -1,82 +1,97 @@
-// Admin list of users with booking counts. Blocks deleting Admins and yourself.
-
+// src/pages/AdminUsers.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { api, type Booking } from '../lib/api';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; // read current user
+import { useAuth } from '../context/AuthContext';
 
 type UserRow = { _id: string; username: string; role: 'User' | 'Admin' };
 
 export default function AdminUsers() {
-  const { user } = useAuth(); // currently logged-in user
+  const { user: currentUser } = useAuth();
 
   const [users, setUsers] = useState<UserRow[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [message, setMessage] = useState<string | null>(null);
 
-  async function load() {
-    setLoading(true);
+  // Load users and bookings from API
+  async function loadData() {
+    setIsLoading(true);
     try {
-      const [u, b] = await Promise.all([api.getUsers(), api.getBookings()]);
-      setUsers(u);
-      setBookings(b);
-    } catch (e: any) {
-      setMsg(e.message || 'Kunde inte hämta data');
+      const [userList, bookingList] = await Promise.all([
+        api.getUsers(),
+        api.getBookings(),
+      ]);
+      setUsers(userList);
+      setBookings(bookingList);
+    } catch (error: any) {
+      setMessage(error.message || 'Kunde inte hämta data');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  // userId -> number of bookings
-  const counts = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const b of bookings) {
-      const uid = typeof b.userId === 'string' ? b.userId : b.userId?._id;
-      if (!uid) continue;
-      m.set(uid, (m.get(uid) || 0) + 1);
+  // Create a map of userId → number of bookings
+  const bookingCounts = useMemo(() => {
+    const bookingMap = new Map<string, number>();
+    for (const booking of bookings) {
+      const userId =
+        typeof booking.userId === 'string'
+          ? booking.userId
+          : booking.userId?._id;
+      if (!userId) continue;
+      bookingMap.set(userId, (bookingMap.get(userId) || 0) + 1);
     }
-    return m;
+    return bookingMap;
   }, [bookings]);
 
-  const removeUser = async (u: UserRow) => {
-    if (u.role === 'Admin') {
-      setMsg('Du kan inte ta bort administratörskonton.');
-      return;
-    }
-    // Prevent removing yourself
-    if (user && (user.id === u._id || user.username === u.username)) {
-      setMsg('Du kan inte ta bort ditt eget konto.');
+  // Delete user with confirmation and validation
+  const removeUser = async (targetUser: UserRow) => {
+    if (targetUser.role === 'Admin') {
+      setMessage('Du kan inte ta bort administratörskonton.');
       return;
     }
 
-    const id = u._id;
-    const username = u.username;
-    const hasBookings = (counts.get(id) || 0) > 0;
+    if (
+      currentUser &&
+      (currentUser.id === targetUser._id ||
+        currentUser.username === targetUser.username)
+    ) {
+      setMessage('Du kan inte ta bort ditt eget konto.');
+      return;
+    }
 
-    if (hasBookings) {
+    const userId = targetUser._id;
+    const username = targetUser.username;
+    const userHasBookings = (bookingCounts.get(userId) || 0) > 0;
+
+    if (userHasBookings) {
       if (!confirm(`${username} har bokningar. Ta bort ändå?`)) return;
     } else {
       if (!confirm(`Ta bort ${username}?`)) return;
     }
 
     try {
-      await api.deleteUser(id);
-      setMsg('Användare borttagen');
-      load();
-    } catch (e: any) {
-      setMsg(e.message || 'Kunde inte ta bort användare');
+      await api.deleteUser(userId);
+      setMessage('Användare borttagen');
+      loadData();
+    } catch (error: any) {
+      setMessage(error.message || 'Kunde inte ta bort användare');
     }
   };
 
-  if (loading) return <div className="container-p py-10">Laddar…</div>;
+  if (isLoading) {
+    return <div className="container-p py-10">Laddar…</div>;
+  }
 
   return (
     <div className="container-p py-10">
       <h1 className="text-2xl font-bold mb-6">Admin · Användare</h1>
-      {msg && <div className="mb-4 text-sm">{msg}</div>}
+      {message && <div className="mb-4 text-sm">{message}</div>}
 
       <div className="overflow-x-auto">
         <table className="min-w-[640px] w-full text-sm">
@@ -89,35 +104,48 @@ export default function AdminUsers() {
             </tr>
           </thead>
           <tbody>
-            {users.map(u => {
-              const id = u._id;
-              const c = counts.get(id) || 0;
-              const isAdmin = u.role === 'Admin';
-              const isSelf = user && (user.id === id || user.username === u.username);
+            {users.map((userRow) => {
+              const userId = userRow._id;
+              const bookingCount = bookingCounts.get(userId) || 0;
+              const isAdmin = userRow.role === 'Admin';
+              const isSelf =
+                currentUser &&
+                (currentUser.id === userId ||
+                  currentUser.username === userRow.username);
 
               return (
-                <tr key={id} className="border-b">
-                  <td className="py-2">{u.username}</td>
-                  <td className="py-2">{u.role}</td>
+                <tr key={userId} className="border-b">
+                  <td className="py-2">{userRow.username}</td>
+                  <td className="py-2">{userRow.role}</td>
                   <td className="py-2">
-                    {c}{' '}
-                    {c > 0 && (
-                      <Link className="underline" to={`/admin/bookings?userId=${id}`}>
+                    {bookingCount}{' '}
+                    {bookingCount > 0 && (
+                      <Link
+                        className="underline"
+                        to={`/admin/bookings?userId=${userId}`}
+                      >
                         (visa)
                       </Link>
                     )}
                   </td>
                   <td className="py-2">
-                    {(isAdmin || isSelf) ? (
+                    {isAdmin || isSelf ? (
                       <button
                         className="btn-danger opacity-50 cursor-not-allowed"
                         disabled
-                        title={isAdmin ? 'Administratörer kan inte tas bort' : 'Du kan inte ta bort ditt eget konto'}
+                        title={
+                          isAdmin
+                            ? 'Administratörer kan inte tas bort'
+                            : 'Du kan inte ta bort ditt eget konto'
+                        }
                       >
                         Ta bort
                       </button>
                     ) : (
-                      <button className="btn-danger" onClick={() => removeUser(u)}>
+                      <button
+                        className="btn-danger"
+                        onClick={() => removeUser(userRow)}
+                      >
                         Ta bort
                       </button>
                     )}
@@ -128,7 +156,9 @@ export default function AdminUsers() {
 
             {users.length === 0 && (
               <tr>
-                <td className="py-4" colSpan={4}>Inga användare.</td>
+                <td className="py-4" colSpan={4}>
+                  Inga användare.
+                </td>
               </tr>
             )}
           </tbody>

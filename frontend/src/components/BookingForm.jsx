@@ -1,4 +1,4 @@
-//components/BookingForm.jsx
+// components/BookingForm.jsx
 import { useState, useEffect } from "react";
 import api from "../lib/api";
 import { toUtcIso, toLocalInputValue } from "../utils/datetime";
@@ -18,7 +18,7 @@ export default function BookingForm({ selectedRoomId, booking }) {
 
   function onChange(e) {
     const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
+    setForm((prevForm) => ({ ...prevForm, [name]: value }));
   }
 
   async function handleSubmit(e) {
@@ -28,8 +28,8 @@ export default function BookingForm({ selectedRoomId, booking }) {
     try {
       const payload = {
         roomId: selectedRoomId,
-        startTime: toUtcIso(form.startTime), // -> "...Z"
-        endTime:   toUtcIso(form.endTime),
+        startTime: toUtcIso(form.startTime),
+        endTime: toUtcIso(form.endTime),
       };
 
       if (booking?.id) {
@@ -37,9 +37,7 @@ export default function BookingForm({ selectedRoomId, booking }) {
       } else {
         await api.post(`/api/bookings`, payload);
       }
-      // TODO: refresh list / close modal here
     } catch (err) {
-      // surface server message like "Room is not available in that time window"
       const msg = err?.response?.data?.error || err.message || "Request failed";
       setError(msg);
     } finally {

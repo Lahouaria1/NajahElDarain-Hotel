@@ -1,3 +1,4 @@
+// src/pages/Home.tsx
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,7 +10,7 @@ export default function Home() {
       {/* HERO */}
       <section className="hero mb-8">
         <img
-          src="/Najah-darain-Hotel.png"       // file you put in public/
+          src="/Najah-darain-Hotel.png" 
           alt="Najah Darain Hotel"
           className="hero-img"
         />
@@ -23,21 +24,30 @@ export default function Home() {
           </p>
 
           <div className="mt-4 flex flex-wrap gap-3">
-            <Link to="/rooms" className="btn-primary">Utforska rum</Link>
-
-            {/* Demo of the red delete style; remove this button here if not needed on Home */}
+            <Link to="/rooms" className="btn-primary">
+              Utforska rum
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* Optional welcome below the hero */}
+      {/* Welcome message section */}
       <section className="mt-6">
         <h2 className="text-xl font-semibold">
-          {user ? <>Välkommen, <span className="text-brand-700">{user.username}</span>!</> : 'Välkommen'}
+          {user ? (
+            <>
+              Välkommen, <span className="text-brand-700">{user.username}</span>!
+            </>
+          ) : (
+            'Välkommen'
+          )}
         </h2>
+
         <p className="text-gray-600 mt-1">
           {user
-            ? (user.role === 'Admin' ? 'Du är inloggad som administratör.' : 'Du är inloggad som användare.')
+            ? user.role === 'Admin'
+              ? 'Du är inloggad som administratör.'
+              : 'Du är inloggad som användare.'
             : 'Logga in eller registrera för att börja boka.'}
         </p>
       </section>

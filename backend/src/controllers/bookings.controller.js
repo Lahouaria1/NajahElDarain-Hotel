@@ -1,54 +1,56 @@
 // backend/src/controllers/bookings.controller.js
-import Booking from '../models/Booking.js';
-import ApiError from '../utils/ApiError.js';
-import { getIO } from '../sockets/io.js';
-import { validateWindow } from '../services/bookingService.js';
-import logger from '../utils/logger.js';
+import Booking from "../models/Booking.js";
+import Room from "../models/Room.js";
+import ApiError from "../utils/ApiError.js";
+import { getIO } from "../sockets/io.js";
+import { validateWindow } from "../services/bookingService.js";
+import logger from "../utils/logger.js";
+import { z } from "zod";
 
-// Ensure responses always include room name/type and username
+// --- Zod schema (works on all v3 via Date.parse) ---
+const isoDate = z
+  .string()
+  .refine(v => !Number.isNaN(Date.parse(v)), "Invalid ISO datetime");
+
+const bookingSchema = z.object({
+  roomId: z.string().min(1, "roomId required"),
+  startTime: isoDate,
+  endTime: isoDate,
+});
+
+// Helper: populate room and user
 async function populateForClient(doc) {
   if (!doc) return doc;
   return doc.populate([
-    { path: 'roomId', select: 'name type' },
-    { path: 'userId', select: 'username' },
+    { path: "roomId", select: "name type" },
+    { path: "userId", select: "username" },
   ]);
 }
 
-/**
- * POST /api/bookings
- * Create a booking for the authenticated user.
- * Standalone MongoDB safe (no transactions).
- */
+// POST /api/bookings
 export async function createBooking(req, res, next) {
-  logger.info('[BOOKINGS] create', { user: req.user?.id, body: req.body });
   try {
-    const { roomId, startTime, endTime } = req.body;
-    if (!roomId || !startTime || !endTime) {
-      throw ApiError.badRequest('roomId, startTime, endTime required');
+    const parsed = bookingSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const message = parsed.error.errors.map(e => e.message).join(", ");
+      throw ApiError.badRequest(message);
     }
 
+    const { roomId, startTime, endTime } = parsed.data;
     const { start, end } = validateWindow(startTime, endTime);
 
-    // Overlap check: any booking in same room that intersects [start, end)
+    // no past bookings
+    if (start.getTime() < Date.now()) {
+      throw ApiError.badRequest("Start time cannot be in the past");
+    }
+
+    // overlap in same room
     const conflict = await Booking.findOne({
       roomId,
       startTime: { $lt: end },
       endTime: { $gt: start },
     });
-
-    if (conflict) {
-      logger.warn('[BOOKINGS] conflict on create', {
-        roomId,
-        requested: { start, end },
-        existing: {
-          id: conflict._id,
-          start: conflict.startTime,
-          end: conflict.endTime,
-          user: conflict.userId,
-        },
-      });
-      throw ApiError.badRequest('Room is not available in that time window');
-    }
+    if (conflict) throw ApiError.badRequest("Room not available");
 
     let booking = await Booking.create({
       roomId,
@@ -60,85 +62,60 @@ export async function createBooking(req, res, next) {
     booking = await populateForClient(booking);
 
     const io = getIO();
-    io?.to(String(req.user.id)).emit('booking:created', booking);
-    io?.to('admins').emit('booking:created', booking);
-
+    io?.to(String(req.user.id)).emit("booking:created", booking);
+    io?.to("admins").emit("booking:created", booking);
     res.status(201).json(booking);
   } catch (e) {
-    logger.error('[BOOKINGS] create error', e);
     next(e);
   }
 }
 
-/**
- * GET /api/bookings
- * Admin: all bookings; User: own bookings.
- */
+// GET /api/bookings
 export async function listBookings(req, res, next) {
-  logger.info('[BOOKINGS] list', { user: req.user?.id, role: req.user?.role });
   try {
-    const filter = req.user.role === 'Admin' ? {} : { userId: req.user.id };
-
+    const filter = req.user.role === "Admin" ? {} : { userId: req.user.id };
     const bookings = await Booking.find(filter)
-      .populate('roomId', 'name type')
-      .populate('userId', 'username')
+      .populate("roomId", "name type")
+      .populate("userId", "username")
       .sort({ startTime: -1 })
       .lean();
-
     res.json(bookings);
   } catch (e) {
-    logger.error('[BOOKINGS] list error', e);
     next(e);
   }
 }
 
-/**
- * PUT /api/bookings/:id
- * Owner or Admin may update.
- * Standalone MongoDB safe (no transactions).
- */
+// PUT /api/bookings/:id
 export async function updateBooking(req, res, next) {
-  logger.info('[BOOKINGS] update', { user: req.user?.id, params: req.params, body: req.body });
   try {
     const { id } = req.params;
     const booking = await Booking.findById(id);
-    if (!booking) throw ApiError.badRequest('Booking not found');
+    if (!booking) throw ApiError.badRequest("Booking not found");
+    if (String(booking.userId) !== req.user.id && req.user.role !== "Admin")
+      throw ApiError.forbidden("Not allowed");
 
-    // Auth: only owner or Admin
-    if (String(booking.userId) !== req.user.id && req.user.role !== 'Admin') {
-      throw ApiError.forbidden('Not allowed');
+    const parsed = bookingSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const message = parsed.error.errors.map(e => e.message).join(", ");
+      throw ApiError.badRequest(message);
     }
 
-    // Default to existing values if not provided
-    const {
-      roomId = booking.roomId,
-      startTime = booking.startTime,
-      endTime = booking.endTime,
-    } = req.body;
-
+    const { roomId, startTime, endTime } = parsed.data;
     const { start, end } = validateWindow(startTime, endTime);
 
-    // Overlap check excluding self
+    // no past bookings
+    if (start.getTime() < Date.now()) {
+      throw ApiError.badRequest("Start time cannot be in the past");
+    }
+
+    // exclude self in overlap check
     const conflict = await Booking.findOne({
       _id: { $ne: id },
       roomId,
       startTime: { $lt: end },
       endTime: { $gt: start },
     });
-
-    if (conflict) {
-      logger.warn('[BOOKINGS] conflict on update', {
-        roomId,
-        requested: { start, end },
-        existing: {
-          id: conflict._id,
-          start: conflict.startTime,
-          end: conflict.endTime,
-          user: conflict.userId,
-        },
-      });
-      throw ApiError.badRequest('Room is not available in that time window');
-    }
+    if (conflict) throw ApiError.badRequest("Room not available");
 
     booking.roomId = roomId;
     booking.startTime = start;
@@ -146,76 +123,141 @@ export async function updateBooking(req, res, next) {
     await booking.save();
 
     const populated = await populateForClient(booking);
-
     const io = getIO();
-    io?.to(String(booking.userId)).emit('booking:updated', populated);
-    io?.to('admins').emit('booking:updated', populated);
-
+    io?.to(String(booking.userId)).emit("booking:updated", populated);
+    io?.to("admins").emit("booking:updated", populated);
     res.json(populated);
   } catch (e) {
-    logger.error('[BOOKINGS] update error', e);
     next(e);
   }
 }
 
-/**
- * DELETE /api/bookings/:id
- * Owner or Admin may delete.
- */
+// DELETE /api/bookings/:id
 export async function deleteBooking(req, res, next) {
-  logger.info('[BOOKINGS] delete', { user: req.user?.id, params: req.params });
   try {
     const { id } = req.params;
     const booking = await Booking.findById(id);
-    if (!booking) throw ApiError.badRequest('Booking not found');
+    if (!booking) throw ApiError.badRequest("Booking not found");
+    if (String(booking.userId) !== req.user.id && req.user.role !== "Admin")
+      throw ApiError.forbidden("Not allowed");
 
-    if (String(booking.userId) !== req.user.id && req.user.role !== 'Admin') {
-      throw ApiError.forbidden('Not allowed');
-    }
-
-    const userRoom = String(booking.userId);
     await booking.deleteOne();
 
     const io = getIO();
-    io?.to(userRoom).emit('booking:deleted', { id });
-    io?.to('admins').emit('booking:deleted', { id });
-
+    io?.to(String(booking.userId)).emit("booking:deleted", { id });
+    io?.to("admins").emit("booking:deleted", { id });
     res.status(204).send();
   } catch (e) {
-    logger.error('[BOOKINGS] delete error', e);
     next(e);
   }
 }
 
-/**
- * (Optional) GET /api/bookings/debug/conflicts?roomId=...&start=ISO&end=ISO
- * Returns overlapping bookings for troubleshooting.
- */
+// GET /api/bookings/debug/conflicts
 export async function findConflicts(req, res, next) {
-  logger.info('[BOOKINGS] debug conflicts', { user: req.user?.id, query: req.query });
   try {
     const { roomId, start, end } = req.query;
-    if (!roomId || !start || !end) {
-      throw ApiError.badRequest('roomId, start, end required');
-    }
+    if (!roomId || !start || !end)
+      throw ApiError.badRequest("roomId, start, end required");
+
     const s = new Date(start);
     const e = new Date(end);
-    if (Number.isNaN(+s) || Number.isNaN(+e) || s >= e) {
-      throw ApiError.badRequest('Invalid start/end');
-    }
+    if (Number.isNaN(+s) || Number.isNaN(+e) || s >= e)
+      throw ApiError.badRequest("Invalid dates");
 
     const conflicts = await Booking.find({
       roomId,
       startTime: { $lt: e },
       endTime: { $gt: s },
     })
-      .populate('roomId', 'name type')
-      .populate('userId', 'username')
+      .populate("roomId", "name type")
+      .populate("userId", "username")
       .sort({ startTime: 1 });
 
     res.json(conflicts);
   } catch (e) {
-    logger.error('[BOOKINGS] debug conflicts error', e);
+    next(e);
+  }
+}
+
+// GET /api/bookings/availability
+export async function roomsAvailability(req, res, next) {
+  try {
+    const { start, end } = req.query;
+    if (!start || !end) throw ApiError.badRequest("start and end required");
+
+    const s = new Date(start);
+    const e = new Date(end);
+    if (Number.isNaN(+s) || Number.isNaN(+e) || s >= e)
+      throw ApiError.badRequest("Invalid dates");
+
+    const [rooms, agg] = await Promise.all([
+      Room.find({}, "name type capacity").lean(),
+      Booking.aggregate([
+        { $match: { startTime: { $lt: e }, endTime: { $gt: s } } },
+        {
+          $group: {
+            _id: "$roomId",
+            slots: { $push: { startTime: "$startTime", endTime: "$endTime" } },
+          },
+        },
+      ]),
+    ]);
+
+    const busyMap = new Map(agg.map(r => [String(r._id), r.slots]));
+    const result = rooms.map(r => {
+      const busy = busyMap.get(String(r._id)) || [];
+      return {
+        roomId: r._id,
+        name: r.name,
+        type: r.type,
+        capacity: r.capacity,
+        available: busy.length === 0,
+        busy,
+      };
+    });
+
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+}
+
+// GET /api/bookings/room/:id/busy
+export async function roomBusy(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { start, end } = req.query;
+    if (!id || !start || !end)
+      throw ApiError.badRequest("roomId, start, end required");
+
+    const s = new Date(start);
+    const e = new Date(end);
+    if (Number.isNaN(+s) || Number.isNaN(+e) || s >= e)
+      throw ApiError.badRequest("Invalid dates");
+
+    const [room, bookings] = await Promise.all([
+      Room.findById(id, "name type capacity").lean(),
+      Booking.find(
+        { roomId: id, startTime: { $lt: e }, endTime: { $gt: s } },
+        "startTime endTime"
+      )
+        .sort({ startTime: 1 })
+        .lean(),
+    ]);
+
+    if (!room) throw ApiError.badRequest("Room not found");
+
+    res.json({
+      roomId: room._id,
+      name: room.name,
+      type: room.type,
+      capacity: room.capacity,
+      busy: bookings.map(b => ({
+        startTime: b.startTime,
+        endTime: b.endTime,
+      })),
+    });
+  } catch (e) {
     next(e);
   }
 }

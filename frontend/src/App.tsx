@@ -13,24 +13,17 @@ import NavBar from './components/NavBar';
 import Footer from './components/Footer';
 import About from './pages/About';
 
-
 export default function App() {
   return (
     <div className="min-h-dvh flex flex-col">
-      {/* Top navigation on every page */}
       <NavBar />
-
-      {/* Page content */}
       <main className="flex-1">
         <Routes>
-          {/* Public */}
           <Route path="/" element={<Home />} />
-          <Route path="/about" element={<About />} /> 
+          <Route path="/about" element={<About />} />
           <Route path="/rooms" element={<Rooms />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-
-          {/* Authenticated user pages */}
           <Route
             path="/bookings"
             element={
@@ -39,8 +32,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* Admin-only pages */}
           <Route
             path="/admin/rooms"
             element={
@@ -65,13 +56,16 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* 404 fallback — must be last */}
-          <Route path="*" element={<div className="container-p py-10">Sidan finns inte.</div>} />
+          <Route
+            path="*"
+            element={
+              <div className="container-p py-10">
+                Sidan finns inte.
+              </div>
+            }
+          />
         </Routes>
       </main>
-
-      {/* Global footer */}
       <Footer />
     </div>
   );

@@ -1,4 +1,4 @@
-// Admin can create/update/delete rooms. Adds simple validation and saving guard.
+// Admin can create/update/delete rooms. 
 
 import React, { useEffect, useState } from 'react';
 import { api } from '../lib/api';
@@ -23,7 +23,7 @@ export default function AdminRooms() {
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false); // prevent double submit
+  const [saving, setSaving] = useState(false); 
   const [msg, setMsg] = useState<string | null>(null);
 
   async function load() {
@@ -39,7 +39,7 @@ export default function AdminRooms() {
     e.preventDefault();
     setMsg(null);
 
-    // Simple validation
+
     const cap = Number(form.capacity);
     if (!form.name.trim() || !Number.isFinite(cap) || cap < 1) {
       setMsg('Fyll i giltigt namn & kapacitet (>=1)');
@@ -106,7 +106,7 @@ export default function AdminRooms() {
             placeholder="Kapacitet"
             value={form.capacity}
             onChange={(e) => {
-              // Keep >= 1, allow empty while typing
+
               const v = e.target.value === '' ? '' : Math.max(1, Number(e.target.value));
               setForm({ ...form, capacity: v as any });
             }}
@@ -157,8 +157,8 @@ export default function AdminRooms() {
             <article key={r._id} className="card overflow-hidden">
               <img
                 src={r.imageUrl || 'https://picsum.photos/640/360'}
-                alt={r.name}            // better a11y
-                loading="lazy"          // perf
+                alt={r.name}          
+                loading="lazy"        
                 className="h-44 w-full object-cover"
               />
               <div className="p-4">

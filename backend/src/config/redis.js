@@ -5,19 +5,18 @@ import logger from "../utils/logger.js";
 export let redis = null;
 
 export async function initRedis() {
+  if (redis) return redis;
+
   try {
-    // Prefer single URL (works with Upstash)
     const url = process.env.REDIS_URL;
 
     if (url) {
       const needsTLS = url.startsWith("rediss://");
       redis = new Redis(url, {
-        // Upstash-friendly options
         tls: needsTLS ? {} : undefined,
-        maxRetriesPerRequest: null,   // avoid request timeouts during reconnects
-        enableReadyCheck: false,      // Upstash doesn't require INFO on startup
-        reconnectOnError: () => true, // always try to recover
-        // optional: longer socket keepalive for free tier sleeps
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
+        reconnectOnError: () => true,
         keepAlive: 30_000,
         connectTimeout: 20_000,
       });
@@ -37,13 +36,27 @@ export async function initRedis() {
       });
     }
 
-    redis.on("connect",   () => logger.info("Redis connected"));
-    redis.on("ready",     () => logger.info("Redis ready"));
+    redis.on("connect", () => logger.info("Redis connected"));
+    redis.on("ready", () => logger.info("Redis ready"));
     redis.on("reconnecting", () => logger.warn("Redis reconnecting…"));
-    redis.on("end",       () => logger.warn("Redis connection ended"));
-    redis.on("error",     (err) => logger.error("Redis error", err));
+    redis.on("end", () => logger.warn("Redis connection ended"));
+    redis.on("error", (err) => logger.error("Redis error", err));
+
+    try {
+      await redis.ping();
+    } catch (e) {
+      logger.warn(`Redis ping failed at init: ${e?.message || e}`);
+    }
+
+    return redis;
   } catch (e) {
     logger.error("Redis init error", e);
-    redis = null; // don't crash the app
+    redis = null;
+    return null;
   }
+}
+
+export function getRedis() {
+  if (!redis) throw new Error("Redis not initialized");
+  return redis;
 }

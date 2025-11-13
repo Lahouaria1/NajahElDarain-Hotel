@@ -1,168 +1,140 @@
-// src/pages/AdminBookings.tsx
-import { useEffect, useMemo, useState } from 'react';
-import { api, type Booking } from '../lib/api';
-import { useSearchParams } from 'react-router-dom';
-// Optional: live socket updates for admin list as well
-// import useLiveBookings from '../hooks/useLiveBookings';
+// src/pages/About.tsx
+import { Link } from 'react-router-dom';
 
-/** ISO → local value for datetime-local input */
-function isoToLocalInput(s: string) {
-  const d = new Date(s);
-  const off = d.getTimezoneOffset();
-  const local = new Date(d.getTime() - off * 60000);
-  return local.toISOString().slice(0, 16);
-}
-
-export default function AdminBookings() {
-  // All bookings (admin sees everything from the API)
-  const [items, setItems] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  // Inline edit state
-  const [editId, setEditId] = useState<string | null>(null);
-  const [start, setStart] = useState('');
-  const [end, setEnd] = useState('');
-
-  // Simple query-param filter by userId
-  const [params, setParams] = useSearchParams();
-  const filterUser = params.get('userId') || '';
-
-  /** Load all bookings (admin scope) */
-  async function load() {
-    setLoading(true);
-    try {
-      const all = await api.getBookings(); // admin gets ALL from backend
-      setItems(all);
-    } catch (e: any) {
-      setMsg(e.message || 'Kunde inte hämta bokningar');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { load(); }, []);
-
-  // Optional: live updates via Socket.IO
-  // useLiveBookings(setItems);
-
-  /** Filter by userId if present in query string */
-  const filtered = useMemo(() => {
-    if (!filterUser) return items;
-    return items.filter(b =>
-      typeof b.userId === 'string' ? b.userId === filterUser : b.userId?._id === filterUser
-    );
-  }, [items, filterUser]);
-
-  /** Open edit form */
-  const onEdit = (b: Booking) => {
-    setEditId(b._id);
-    setStart(isoToLocalInput(b.startTime));
-    setEnd(isoToLocalInput(b.endTime));
-  };
-
-  /** Save edit */
-  const onSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editId) return;
-    try {
-      await api.updateBooking(editId, {
-        startTime: new Date(start).toISOString(),
-        endTime: new Date(end).toISOString(),
-      });
-      setMsg('Bokning uppdaterad');
-      setEditId(null);
-      load(); // refresh
-    } catch (e: any) {
-      setMsg(e.message || 'Kunde inte uppdatera');
-    }
-  };
-
-  /** Delete booking (admin can delete any) */
-  const onDelete = async (id: string) => {
-    if (!confirm('Ta bort bokningen?')) return;
-    try {
-      await api.deleteBooking(id);
-      setMsg('Bokning borttagen');
-      load(); // refresh
-    } catch (e: any) {
-      setMsg(e.message || 'Kunde inte ta bort');
-    }
-  };
-
+export default function About() {
   return (
-    <div className="container-p py-10">
-      <h1 className="text-2xl font-bold mb-6">Admin · Alla bokningar</h1>
-
-      {/* Simple text filter by userId */}
-      <div className="mb-4 flex items-center gap-2">
-        <input
-          className="input max-w-xs"
-          placeholder="Filter: userId (valfritt)"
-          value={filterUser}
-          onChange={e => setParams(e.target.value ? { userId: e.target.value } : {})}
-        />
-        {filterUser && <button className="btn-ghost" onClick={() => setParams({})}>Rensa filter</button>}
-      </div>
-
-      {msg && <div className="mb-4 text-sm">{msg}</div>}
-
-      {loading ? 'Laddar…' : (
-        <div className="space-y-3">
-          {filtered.map(b => (
-            <div key={b._id} className="card p-4">
-              <div className="flex justify-between items-center gap-4">
-                <div className="text-sm">
-                  <div className="font-semibold">
-                    {/* Room name (or ID if not populated) */}
-                    {(typeof b.roomId === 'string' ? b.roomId : b.roomId?.name) || 'Rum'}
-                    {' · '}
-                    {/* Username (or ID if not populated) */}
-                    {(typeof b.userId === 'string' ? b.userId : b.userId?.username) || 'Användare'}
-                  </div>
-                  <div>
-                    {new Date(b.startTime).toLocaleString()} – {new Date(b.endTime).toLocaleString()}
-                  </div>
-                  <div className="text-xs text-gray-500">ID: {b._id}</div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2">
-                  {/* ✅ Green edit */}
-                  <button className="btn-success" onClick={() => onEdit(b)}>Redigera</button>
-                  {/* 🔴 Red delete */}
-                  <button className="btn-danger" onClick={() => onDelete(b._id)}>Ta bort</button>
-                </div>
-              </div>
-
-              {/* Inline edit panel */}
-              {editId === b._id && (
-                <form onSubmit={onSave} className="mt-3 grid sm:grid-cols-3 gap-2">
-                  <input
-                    type="datetime-local"
-                    className="input"
-                    value={start}
-                    onChange={e=>setStart(e.target.value)}
-                  />
-                  <input
-                    type="datetime-local"
-                    className="input"
-                    value={end}
-                    onChange={e=>setEnd(e.target.value)}
-                  />
-                  <div className="flex gap-2">
-                    <button className="btn-primary">Spara</button>
-                    <button type="button" className="btn-ghost" onClick={()=>setEditId(null)}>Avbryt</button>
-                  </div>
-                </form>
-              )}
-            </div>
-          ))}
-
-          {/* Empty state */}
-          {filtered.length === 0 && <div>Inga bokningar hittades.</div>}
+    <div className="pb-12">
+      <section className="hero">
+        <div className="hero-grad" />
+        <div className="hero-copy">
+          <h1 className="text-3xl sm:text-4xl font-extrabold">Najah El Darain Hotel</h1>
+          <p className="mt-2 text-sm sm:text-base text-white/90">
+            En varm och personlig hotellupplevelse – nära stadens puls och lugna grönytor.
+          </p>
         </div>
-      )}
+      </section>
+
+      <div className="container-p mt-10 space-y-10">
+        <section className="grid gap-6 md:grid-cols-3">
+          <div className="md:col-span-2">
+            <h2 className="text-2xl font-bold">Om oss</h2>
+            <p className="mt-3 text-gray-700 leading-relaxed">
+              Najah El Darain Hotel välkomnar både affärsresenärer, familjer och weekendgäster.
+              Hos oss möts omtanke, komfort och stilren design – med fokus på god nattsömn,
+              god service och smidiga lösningar under hela din vistelse.
+            </p>
+          </div>
+          <aside className="card p-4">
+            <h3 className="font-semibold">Snabbfakta</h3>
+            <ul className="mt-2 text-sm text-gray-700 space-y-1">
+              <li>✓ 24/7 reception</li>
+              <li>✓ Gratis Wi-Fi</li>
+              <li>✓ Frukost & restaurang</li>
+              <li>✓ Gym & relax*</li>
+              <li>✓ Mötesrum & event</li>
+              <li className="text-xs text-gray-500">* i mån av tillgång</li>
+            </ul>
+          </aside>
+        </section>
+
+        <section className="grid gap-6 md:grid-cols-2">
+          <div className="card p-5">
+            <h3 className="text-lg font-semibold">Vision & värderingar</h3>
+            <ul className="mt-3 text-gray-700 space-y-2 text-sm">
+              <li><strong>Gästfokus:</strong> Respekt, värme och flexibilitet.</li>
+              <li><strong>Komfort:</strong> Tysta rum, sköna sängar, bra sömn.</li>
+              <li><strong>Kvalitet:</strong> Rena, säkra och välskötta utrymmen.</li>
+              <li><strong>Hållbarhet:</strong> Smarta energival och lokala samarbeten.</li>
+            </ul>
+          </div>
+
+          <div className="card p-5">
+            <h3 className="text-lg font-semibold">Våra rum</h3>
+            <ul className="mt-3 text-gray-700 space-y-2 text-sm">
+              <li><strong>Standardrum:</strong> 1–2 pers, skrivbord & snabb Wi-Fi.</li>
+              <li><strong>Deluxerum:</strong> Extra utrymme, loungehörna, kaffe/te.</li>
+              <li><strong>Familjerum:</strong> Plats för hela familjen (barnsäng vid behov).</li>
+              <li><strong>Svit:</strong> Separat sovrum/vardagsrum, välkomstpaket.</li>
+            </ul>
+          </div>
+        </section>
+
+        <section className="card p-5">
+          <h3 className="text-lg font-semibold">Tjänster & faciliteter</h3>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 text-sm text-gray-700">
+            <ul className="space-y-2">
+              <li>• Frukost med klassiskt & lokalt utbud</li>
+              <li>• Restaurang & bar (säsongsmeny)</li>
+              <li>• Room service (utvalda tider)</li>
+              <li>• Gratis Wi-Fi i hela hotellet</li>
+            </ul>
+            <ul className="space-y-2">
+              <li>• Gym & relax (bastu/ånga*)</li>
+              <li>• Mötesrum & eventteknik</li>
+              <li>• 24/7 reception & bagage</li>
+              <li>• Tvätt/tvättservice</li>
+            </ul>
+            <ul className="space-y-2">
+              <li>• Parkering/garage i närheten</li>
+              <li>• Flygplatstransfer & taxi (förbokas)</li>
+              <li>• Barnvänliga alternativ</li>
+              <li>• Vegetariskt/veganskt utbud</li>
+            </ul>
+          </div>
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-2">
+          <div className="card p-5">
+            <h3 className="text-lg font-semibold">Läget</h3>
+            <p className="mt-3 text-gray-700 text-sm leading-relaxed">
+              <strong>Adress:</strong> Gatuadress 1, 123 45 Stad<br />
+              <strong>Avstånd:</strong> ~10 min till centralstationen · ~25 min till flygplatsen · nära sevärdheter och parker.
+            </p>
+            <Link to="/rooms" className="btn-primary mt-4 inline-flex">Se våra rum</Link>
+          </div>
+
+          <div className="card p-5">
+            <h3 className="text-lg font-semibold">Policy & tider</h3>
+            <ul className="mt-3 text-gray-700 space-y-2 text-sm">
+              <li><strong>Incheckning:</strong> från 15:00 · <strong>Utcheckning:</strong> till 11:00</li>
+              <li><strong>Avbokning:</strong> gratis t.o.m. 24–48 h innan (beroende på pris).</li>
+              <li><strong>Rökfritt:</strong> Hela hotellet är rökfritt.</li>
+              <li><strong>Husdjur:</strong> [tillåts/tillåts ej].</li>
+              <li><strong>Betalning:</strong> Kort (Visa/Mastercard/Amex) och [ev. kontanter].</li>
+            </ul>
+          </div>
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-2">
+          <div className="card p-5">
+            <h3 className="text-lg font-semibold">Tillgänglighet</h3>
+            <ul className="mt-3 text-gray-700 space-y-2 text-sm">
+              <li>• Hiss, ramper och tillgänglig entré.</li>
+              <li>• Anpassade rum (på förfrågan).</li>
+              <li>• Hjälpmedel – meddela oss gärna i förväg.</li>
+            </ul>
+          </div>
+
+          <div className="card p-5">
+            <h3 className="text-lg font-semibold">Hållbarhet</h3>
+            <ul className="mt-3 text-gray-700 space-y-2 text-sm">
+              <li>• LED-belysning, vattenbesparing, källsortering.</li>
+              <li>• Lokala leverantörer & minskat matsvinn.</li>
+              <li>• Textilbyte enligt gästönskemål för att spara resurser.</li>
+            </ul>
+          </div>
+        </section>
+
+        <section className="card p-5">
+          <h3 className="text-lg font-semibold">Kontakt</h3>
+          <div className="mt-3 text-sm text-gray-700 space-y-1">
+            <p><strong>Telefon:</strong> +46 (0)xx-xxx xx xx</p>
+            <p><strong>E-post:</strong> info@najah-eldarain.example</p>
+            <p><strong>Reception:</strong> Öppen dygnet runt.</p>
+          </div>
+          <a href="mailto:info@najah-eldarain.example" className="btn-primary mt-4 inline-flex">Kontakta oss</a>
+        </section>
+      </div>
     </div>
   );
 }

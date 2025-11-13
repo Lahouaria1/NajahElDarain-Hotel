@@ -12,13 +12,11 @@ const roomSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Unique per (name, type). Collation makes it case-insensitive.
 roomSchema.index(
   { name: 1, type: 1 },
   { unique: true, collation: { locale: 'en', strength: 2 } }
 );
 
-// Optional: cleaner JSON output
 roomSchema.set('toJSON', { versionKey: false });
 
 export default mongoose.model('Room', roomSchema);

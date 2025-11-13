@@ -1,5 +1,4 @@
-// List rooms and allow booking. Disables the button until form is valid.
-
+// src/pages/Rooms.tsx
 import { useEffect, useState } from 'react';
 import { api, type Room, type Booking } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
@@ -14,7 +13,7 @@ export default function Rooms() {
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // Lower bound for inputs (now, local) to block past times
+  // Block past times
   const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
     .toISOString()
     .slice(0, 16);
@@ -23,30 +22,33 @@ export default function Rooms() {
     setLoading(true);
     setMsg(null);
     try {
-      const [rs, bs] = await Promise.all([
+      const [roomsRes, bookingsRes] = await Promise.all([
         api.getRooms(),
-        api.getBookings(), // Admin = all; User = own
+        api.getBookings(),
       ]);
-      setRooms(rs);
-      setBookings(bs);
-    } catch (e: any) {
-      setMsg(e.message || 'Kunde inte hämta rum');
+      setRooms(roomsRes);
+      setBookings(bookingsRes);
+    } catch (err: any) {
+      setMsg(err.message || 'Kunde inte hämta rum');
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
-  const book = async (e: React.FormEvent) => {
+  async function book(e: React.FormEvent) {
     e.preventDefault();
     if (!form.roomId || !form.start || !form.end) {
-      return setMsg('Fyll i alla fält');
+      setMsg('Fyll i alla fält');
+      return;
     }
     if (new Date(form.start) >= new Date(form.end)) {
-      return setMsg('Sluttid måste vara efter starttid');
+      setMsg('Sluttid måste vara efter starttid');
+      return;
     }
-
     try {
       await api.createBooking({
         roomId: form.roomId,
@@ -56,10 +58,10 @@ export default function Rooms() {
       setMsg('Bokning skapad');
       setForm({});
       await load();
-    } catch (e: any) {
-      setMsg(e.message || 'Kunde inte skapa bokning');
+    } catch (err: any) {
+      setMsg(err.message || 'Kunde inte skapa bokning');
     }
-  };
+  }
 
   if (!user) return <div className="container-p py-10">Logga in för att se rum.</div>;
   if (loading) return <div className="container-p py-10">Laddar…</div>;
@@ -75,14 +77,17 @@ export default function Rooms() {
       )}
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {rooms.map(r => {
-          // A few upcoming bookings for this room
+        {rooms.map((room) => {
           const upcoming = bookings
-            .filter(b => (typeof b.roomId === 'string' ? b.roomId === r._id : b.roomId?._id === r._id))
+            .filter((b) =>
+              typeof b.roomId === 'string'
+                ? b.roomId === room._id
+                : b.roomId?._id === room._id
+            )
             .sort((a, b) => +new Date(a.startTime) - +new Date(b.startTime))
             .slice(0, 3);
 
-          const isActive = form.roomId === r._id; // one active form per card
+          const isActive = form.roomId === room._id;
           const canBook =
             isActive &&
             !!form.start &&
@@ -90,46 +95,52 @@ export default function Rooms() {
             new Date(form.start) < new Date(form.end);
 
           return (
-            <article key={r._id} className="card overflow-hidden">
+            <article key={room._id} className="card overflow-hidden">
               <img
-                src={r.imageUrl || 'https://picsum.photos/640/360'}
-                alt={r.name}
+                src={room.imageUrl || 'https://picsum.photos/640/360'}
+                alt={room.name}
                 className="h-44 w-full object-cover"
+                loading="lazy"
               />
               <div className="p-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold">{r.name}</h3>
+                  <h3 className="font-semibold">{room.name}</h3>
                   <span className="text-xs uppercase border rounded-full px-2 py-0.5">
-                    {r.type}
+                    {room.type}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 mt-1">Kapacitet: {r.capacity}</p>
+                <p className="text-sm text-gray-600 mt-1">Kapacitet: {room.capacity}</p>
 
-                {/* Existing bookings preview */}
                 <ul className="text-xs text-gray-600 mt-2 space-y-1">
-                  {upcoming.map(b => (
+                  {upcoming.map((b) => (
                     <li key={b._id}>
-                      {new Date(b.startTime).toLocaleString()} – {new Date(b.endTime).toLocaleString()}
+                      {new Date(b.startTime).toLocaleString()} –{' '}
+                      {new Date(b.endTime).toLocaleString()}
                     </li>
                   ))}
-                  {upcoming.length === 0 && <li className="opacity-60">Inga kommande tider</li>}
+                  {upcoming.length === 0 && (
+                    <li className="opacity-60">Inga kommande tider</li>
+                  )}
                 </ul>
 
-                {/* Inline booking form */}
                 <form onSubmit={book} className="mt-3 space-y-2">
                   <input
                     type="datetime-local"
                     className="input w-full"
-                    value={isActive ? (form.start || '') : ''}
-                    onChange={(e) => setForm({ roomId: r._id, start: e.target.value, end: form.end })}
+                    value={isActive ? form.start || '' : ''}
+                    onChange={(e) =>
+                      setForm({ roomId: room._id, start: e.target.value, end: form.end })
+                    }
                     min={nowLocal}
                   />
                   <input
                     type="datetime-local"
                     className="input w-full"
-                    value={isActive ? (form.end || '') : ''}
-                    onChange={(e) => setForm({ roomId: r._id, start: form.start, end: e.target.value })}
-                    min={isActive ? (form.start || nowLocal) : nowLocal} // end ≥ start
+                    value={isActive ? form.end || '' : ''}
+                    onChange={(e) =>
+                      setForm({ roomId: room._id, start: form.start, end: e.target.value })
+                    }
+                    min={isActive ? form.start || nowLocal : nowLocal}
                   />
                   <button className="btn-primary w-full" disabled={!canBook}>
                     Boka

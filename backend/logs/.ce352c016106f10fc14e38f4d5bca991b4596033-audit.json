@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "C:\\Users\\Lenovo\\NajahElDarain-Hotel\\backend\\logs\\.ce352c016106f10fc14e38f4d5bca991b4596033-audit.json",
+    "files": [
+        {
+            "date": 1761986068001,
+            "name": "C:\\Users\\Lenovo\\NajahElDarain-Hotel\\backend\\logs\\app-2025-11-01.log",
+            "hash": "3017b9964416727e3119f48fdf7279ddca55fb936de5f0d6a58a4cd929f768bc"
+        }
+    ],
+    "hashType": "sha256"
+}

@@ -4,14 +4,16 @@ import ApiError from '../utils/ApiError.js';
 import { redis } from '../config/redis.js';
 
 const ROOMS_CACHE_KEY = 'rooms:all';
-const ROOMS_TTL_SEC  = 60;
+const ROOMS_TTL_SEC = 60;
 const ROOM_TYPES = ['workspace', 'conference'];
 
-function isValidHttpUrl(u) {
+function isValidHttpUrl(url) {
   try {
-    const x = new URL(u);
-    return x.protocol === 'http:' || x.protocol === 'https:';
-  } catch { return false; }
+    const urlObj = new URL(url);
+    return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 /** POST /api/rooms (Admin) */
@@ -22,13 +24,16 @@ export async function createRoom(req, res, next) {
     if (!name || capacity == null || !type) {
       throw ApiError.badRequest('name, capacity, type required');
     }
+
     const cap = Number(capacity);
     if (!Number.isFinite(cap) || cap < 1 || !Number.isInteger(cap)) {
       throw ApiError.badRequest('capacity must be a positive integer');
     }
+
     if (!ROOM_TYPES.includes(type)) {
       throw ApiError.badRequest(`type must be one of: ${ROOM_TYPES.join(', ')}`);
     }
+
     if (imageUrl && !isValidHttpUrl(imageUrl)) {
       throw ApiError.badRequest('imageUrl must be a valid http(s) URL');
     }
@@ -59,10 +64,20 @@ export async function listRooms(_req, res, next) {
       }
     }
 
-    const rooms = await Room.find().sort({ createdAt: -1 }).lean();
+    // Shape docs for the frontend: id instead of _id, remove __v
+    const raw = await Room.find().select('-_v').sort({ createdAt: -1 }).lean();
+    const rooms = raw.map(r => ({
+      id: String(r._id),
+      name: r.name,
+      capacity: r.capacity,
+      type: r.type,
+      imageUrl: r.imageUrl || '',
+      description: r.description || '',
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    }));
 
     if (redis) {
-      // ioredis style: key, value, 'EX', ttl
       await redis.set(ROOMS_CACHE_KEY, JSON.stringify(rooms), 'EX', ROOMS_TTL_SEC);
     }
 
@@ -77,9 +92,10 @@ export async function listRooms(_req, res, next) {
 export async function updateRoom(req, res, next) {
   try {
     const { id } = req.params;
-
     const updates = {};
+
     if ('name' in req.body) updates.name = String(req.body.name).trim();
+
     if ('capacity' in req.body) {
       const cap = Number(req.body.capacity);
       if (!Number.isFinite(cap) || cap < 1 || !Number.isInteger(cap)) {
@@ -87,21 +103,23 @@ export async function updateRoom(req, res, next) {
       }
       updates.capacity = cap;
     }
+
     if ('type' in req.body) {
       if (!ROOM_TYPES.includes(req.body.type)) {
         throw ApiError.badRequest(`type must be one of: ${ROOM_TYPES.join(', ')}`);
       }
       updates.type = req.body.type;
     }
+
     if ('imageUrl' in req.body) {
       if (req.body.imageUrl && !isValidHttpUrl(req.body.imageUrl)) {
         throw ApiError.badRequest('imageUrl must be a valid http(s) URL');
       }
       updates.imageUrl = req.body.imageUrl || '';
     }
+
     if ('description' in req.body) updates.description = req.body.description || '';
 
-    // run schema validators on update
     const room = await Room.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
     if (!room) throw ApiError.badRequest('Room not found');
 

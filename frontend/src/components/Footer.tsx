@@ -1,23 +1,15 @@
 // src/components/Footer.tsx
-
-// Author name comes from environment (frontend/.env.local -> VITE_NAME=...)
-// Fallback to a hardcoded name if the env var is missing.
-const AUTHOR = import.meta.env.VITE_APP_NAME ?? 'Lahouaria Sahla';
+const AUTHOR = import.meta.env.VITE_AUTHOR_NAME;
 
 export default function Footer() {
   return (
     <footer className="mt-10">
-      {/* Thin gradient bar at the very top of the footer */}
       <div className="h-1 w-full bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600" />
 
-      {/* Footer body */}
       <div className="bg-slate-950 text-slate-200">
-        {/* Main footer grid: 4 columns on md+, stacked on mobile */}
         <div className="container-p py-10 grid gap-8 sm:grid-cols-2 md:grid-cols-4">
-          {/* Brand / short description */}
           <div>
             <div className="flex items-center gap-2">
-              {/* Simple square logo mark */}
               <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-white/10">N</span>
               <span className="text-lg font-extrabold tracking-tight">NajahElDarain</span>
             </div>
@@ -26,7 +18,6 @@ export default function Footer() {
             </p>
           </div>
 
-          {/* Quick links: Services */}
           <div>
             <h3 className="footer-title">Tjänster</h3>
             <ul className="space-y-2 text-sm">
@@ -35,7 +26,6 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Quick links: Admin */}
           <div>
             <h3 className="footer-title">Admin</h3>
             <ul className="space-y-2 text-sm">
@@ -45,7 +35,6 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Contact + social icons */}
           <div>
             <h3 className="footer-title">Kontakt</h3>
             <ul className="space-y-2 text-sm">
@@ -56,7 +45,6 @@ export default function Footer() {
               </li>
               <li><span className="text-slate-400">Mån–Fre 09–17</span></li>
               <li className="flex gap-3 pt-1">
-                {/* Socials (placeholder links) */}
                 <a className="footer-link" href="#" aria-label="Instagram">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                     <rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" strokeWidth="1.5"/>
@@ -79,7 +67,6 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Bottom bar: copyright + author */}
         <div className="border-t border-white/10">
           <div className="container-p py-4 text-xs text-slate-400 flex items-center justify-between">
             <span>© {new Date().getFullYear()} NajahElDarain</span>
