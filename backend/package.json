@@ -5,7 +5,9 @@
   "private": true,
   "type": "module",
   "main": "src/server.js",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
@@ -24,7 +26,8 @@
     "mongoose": "^8.5.3",
     "morgan": "^1.10.0",
     "socket.io": "^4.7.5",
-    "winston": "^3.13.0"
+    "winston": "^3.13.0",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
