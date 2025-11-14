@@ -1,4 +1,3 @@
-// src/pages/Rooms.tsx
 import { useEffect, useState } from 'react';
 import { api, type Room, type Booking } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
@@ -13,7 +12,6 @@ export default function Rooms() {
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // Block past times
   const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
     .toISOString()
     .slice(0, 16);
@@ -63,31 +61,31 @@ export default function Rooms() {
     }
   }
 
-  if (!user) return <div className="container-p py-10">Logga in för att se rum.</div>;
-  if (loading) return <div className="container-p py-10">Laddar…</div>;
+  if (!user) return <div className="py-10 container-p">Logga in för att se rum.</div>;
+  if (loading) return <div className="py-10 container-p">Laddar…</div>;
 
   return (
-    <div className="container-p py-10">
-      <h1 className="text-2xl font-bold mb-6">Rum</h1>
+    <div className="py-10 container-p">
+      <h1 className="mb-6 text-2xl font-bold">Rum</h1>
 
       {msg && (
-        <div className="mb-4 text-sm rounded-xl px-3 py-2 bg-yellow-50 text-yellow-800 border border-yellow-200">
+        <div className="px-3 py-2 mb-4 text-sm text-yellow-800 border border-yellow-200 rounded-xl bg-yellow-50">
           {msg}
         </div>
       )}
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {rooms.map((room) => {
           const upcoming = bookings
             .filter((b) =>
               typeof b.roomId === 'string'
-                ? b.roomId === room._id
-                : b.roomId?._id === room._id
+                ? b.roomId === room.id
+                : b.roomId?._id === room.id
             )
             .sort((a, b) => +new Date(a.startTime) - +new Date(b.startTime))
             .slice(0, 3);
 
-          const isActive = form.roomId === room._id;
+          const isActive = form.roomId === room.id;
           const canBook =
             isActive &&
             !!form.start &&
@@ -95,11 +93,11 @@ export default function Rooms() {
             new Date(form.start) < new Date(form.end);
 
           return (
-            <article key={room._id} className="card overflow-hidden">
+            <article key={room.id} className="overflow-hidden card">
               <img
                 src={room.imageUrl || 'https://picsum.photos/640/360'}
                 alt={room.name}
-                className="h-44 w-full object-cover"
+                className="object-cover w-full h-44"
                 loading="lazy"
               />
               <div className="p-4">
@@ -109,9 +107,9 @@ export default function Rooms() {
                     {room.type}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 mt-1">Kapacitet: {room.capacity}</p>
+                <p className="mt-1 text-sm text-gray-600">Kapacitet: {room.capacity}</p>
 
-                <ul className="text-xs text-gray-600 mt-2 space-y-1">
+                <ul className="mt-2 space-y-1 text-xs text-gray-600">
                   {upcoming.map((b) => (
                     <li key={b._id}>
                       {new Date(b.startTime).toLocaleString()} –{' '}
@@ -126,23 +124,23 @@ export default function Rooms() {
                 <form onSubmit={book} className="mt-3 space-y-2">
                   <input
                     type="datetime-local"
-                    className="input w-full"
+                    className="w-full input"
                     value={isActive ? form.start || '' : ''}
                     onChange={(e) =>
-                      setForm({ roomId: room._id, start: e.target.value, end: form.end })
+                      setForm({ roomId: room.id, start: e.target.value, end: form.end })
                     }
                     min={nowLocal}
                   />
                   <input
                     type="datetime-local"
-                    className="input w-full"
+                    className="w-full input"
                     value={isActive ? form.end || '' : ''}
                     onChange={(e) =>
-                      setForm({ roomId: room._id, start: form.start, end: e.target.value })
+                      setForm({ roomId: room.id, start: form.start, end: e.target.value })
                     }
                     min={isActive ? form.start || nowLocal : nowLocal}
                   />
-                  <button className="btn-primary w-full" disabled={!canBook}>
+                  <button className="w-full btn-primary" disabled={!canBook}>
                     Boka
                   </button>
                 </form>

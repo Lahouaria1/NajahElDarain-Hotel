@@ -1,9 +1,7 @@
-// src/lib/api.ts
-
 export type User = { id: string; username: string; role: 'User' | 'Admin' };
 
 export type Room = {
-  _id: string;
+  id: string;
   name: string;
   capacity: number;
   type: 'workspace' | 'conference';

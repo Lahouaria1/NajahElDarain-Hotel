@@ -71,10 +71,10 @@ app.get('/healthz', (_req, res) => res.status(200).json({ ok: true }));
 
 // ---------- Routes ----------
 // more specific routes FIRST
+app.use('/api',           authRoutes);
 app.use('/api/rooms',     roomRoutes);
 app.use('/api/bookings',  bookingRoutes);
 app.use('/api/users',     usersRoutes);
-app.use('/api',           authRoutes);
 
 // ---------- 404 & errors ----------
 app.use(notFound);
