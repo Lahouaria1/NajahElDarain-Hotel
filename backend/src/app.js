@@ -1,4 +1,4 @@
-// src/app.js 
+// src/app.js
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -10,7 +10,7 @@ import authRoutes     from './routes/auth.routes.js';
 import roomRoutes     from './routes/rooms.routes.js';
 import bookingRoutes  from './routes/bookings.routes.js';
 import usersRoutes    from './routes/users.routes.js';
-import { notFound, errorHandler } from './middleware/errors.js'; 
+import { notFound, errorHandler } from './middleware/errors.js';
 
 const app = express();
 
@@ -20,7 +20,6 @@ app.set('trust proxy', 1);
 function parseCorsOrigins(value) {
   if (!value) return true;
 
-  // Split the string by commas, remove extra spaces, and filter out empty items
   const list = value
     .split(',')
     .map(originString => originString.trim())
@@ -36,7 +35,7 @@ const corsOptions = {
   allowedHeaders: ['Content-Type','Authorization'],
 };
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); 
+app.options('*', cors(corsOptions));
 
 // ---------- Security & core ----------
 app.use(helmet());
@@ -71,10 +70,12 @@ app.get('/health',  (_req, res) => res.status(200).json({ ok: true }));
 app.get('/healthz', (_req, res) => res.status(200).json({ ok: true }));
 
 // ---------- Routes ----------
-app.use('/api', authRoutes);           
-app.use('/api/rooms', roomRoutes);
-app.use('/api/bookings', bookingRoutes);
-app.use('/api/users', usersRoutes);
+// more specific routes FIRST
+app.use('/api/rooms',     roomRoutes);
+app.use('/api/bookings',  bookingRoutes);
+app.use('/api/users',     usersRoutes);
+// generic /api auth routes LAST
+app.use('/api',           authRoutes);
 
 // ---------- 404 & errors ----------
 app.use(notFound);
